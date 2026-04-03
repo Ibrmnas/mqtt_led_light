@@ -71,20 +71,15 @@
         }
     </style>
 
-    <!-- 1. ICONS FOR IOS WEB CLIP (Home Screen) -->
-    <!-- 180x180 is the standard size for all modern iPhones -->
+    <!-- iOS Home Screen Icon -->
     <link rel="apple-touch-icon" href="/icon-180.png">
     
-    <!-- For extra specificity (optional but good practice) -->
-    <link rel="apple-touch-icon" sizes="152x152" href="/icon-152.png">
-    <link rel="apple-touch-icon" sizes="167x167" href="/icon-167.png">
-    
-    <!-- 2. PWA META TAGS FOR STANDALONE MODE -->
+    <!-- PWA Meta Tags for Standalone Mode -->
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="apple-mobile-web-app-title" content="Smart Home">
 
-    <!-- 3. YOUR EXISTING MANIFEST (Still needed for Android/Chrome) -->
+    <!-- Manifest for Android/Chrome -->
     <link rel="manifest" href="/manifest.json">
     
 </head>
@@ -102,12 +97,12 @@
 </div>
 
 <script>
-    // Your HiveMQ credentials
     const BROKER = "wss://02265bce42164317af0133828c96f3db.s1.eu.hivemq.cloud:8884/mqtt";
     const USERNAME = "ibrmnas";
     const PASSWORD = "gecB7C!3Nq@fQ7n";
     
     let client = null;
+    let sending = false;  // ← Prevents feedback loop
     
     function connect() {
         const options = {
@@ -124,8 +119,6 @@
             document.getElementById('connStatus').innerHTML = '✅ Connected to HiveMQ Cloud';
             document.getElementById('connStatus').className = 'conn-status connected';
             document.getElementById('toggle').disabled = false;
-            
-            // Subscribe to receive status updates
             client.subscribe('room/led/status');
         });
         
@@ -133,7 +126,11 @@
             if (topic === 'room/led/status') {
                 const state = message.toString();
                 document.getElementById('status').innerHTML = `Status: ${state}`;
-                document.getElementById('toggle').checked = (state === 'ON');
+                
+                if (!sending) {
+                    document.getElementById('toggle').checked = (state === 'ON');
+                }
+                sending = false;
             }
         });
         
@@ -150,7 +147,6 @@
         });
     }
     
-    // Send command when toggled
     document.getElementById('toggle').addEventListener('change', (e) => {
         if (!client || !client.connected) {
             alert('Not connected to MQTT broker');
@@ -158,12 +154,12 @@
             return;
         }
         
+        sending = true;
         const state = e.target.checked ? 'ON' : 'OFF';
         client.publish('room/led', state);
         document.getElementById('status').innerHTML = `Status: Sending ${state}...`;
     });
     
-    // Start connection
     connect();
 </script>
 </body>
