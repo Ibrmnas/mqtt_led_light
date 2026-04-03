@@ -70,6 +70,23 @@
             color: #ff4444;
         }
     </style>
+
+    <!-- 1. ICONS FOR IOS WEB CLIP (Home Screen) -->
+    <!-- 180x180 is the standard size for all modern iPhones -->
+    <link rel="apple-touch-icon" href="/icon-180.png">
+    
+    <!-- For extra specificity (optional but good practice) -->
+    <link rel="apple-touch-icon" sizes="152x152" href="/icon-152.png">
+    <link rel="apple-touch-icon" sizes="167x167" href="/icon-167.png">
+    
+    <!-- 2. PWA META TAGS FOR STANDALONE MODE -->
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="Smart Home">
+
+    <!-- 3. YOUR EXISTING MANIFEST (Still needed for Android/Chrome) -->
+    <link rel="manifest" href="/manifest.json">
+    
 </head>
 <body>
 <div class="container">
