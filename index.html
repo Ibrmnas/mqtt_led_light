@@ -13,26 +13,34 @@ body {
     font-family: Arial, sans-serif;
     padding: 20px;
 }
+
 .container {
     margin-top: 100px;
 }
+
 .switch {
     position: relative;
     display: inline-block;
     width: 80px;
     height: 40px;
 }
+
 .switch input {
     display: none;
 }
+
 .slider {
     position: absolute;
     cursor: pointer;
     background-color: #ccc;
     border-radius: 40px;
-    top: 0; left: 0; right: 0; bottom: 0;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
     transition: 0.4s;
 }
+
 .slider:before {
     position: absolute;
     content: "";
@@ -44,24 +52,30 @@ body {
     border-radius: 50%;
     transition: 0.4s;
 }
+
 input:checked + .slider {
     background-color: #00c853;
 }
+
 input:checked + .slider:before {
     transform: translateX(40px);
 }
+
 .status {
     margin-top: 20px;
     font-size: 20px;
 }
+
 .conn-status {
     margin-top: 10px;
     font-size: 14px;
 }
+
 .connected {
     color: #00c853;
 }
-.error {
+
+.disconnected {
     color: #ff4444;
 }
 </style>
@@ -78,7 +92,7 @@ input:checked + .slider:before {
 <div class="container">
     <h1>💡 Smart Light</h1>
 
-    <div id="connStatus" class="conn-status">Connecting...</div>
+    <div class="conn-status" id="connStatus">Connecting...</div>
 
     <label class="switch">
         <input type="checkbox" id="toggle" disabled>
@@ -88,37 +102,58 @@ input:checked + .slider:before {
     <div class="status" id="status">Status: Unknown</div>
 </div>
 
+<!-- Socket.IO -->
+<script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
+
 <script>
-const API_KEY = "ibrmnas7991"; // 🔐 CHANGE THIS
+const API_KEY = "ibrmnas7991"; // 🔐 MUST match server.py
+
 const toggle = document.getElementById("toggle");
 const statusText = document.getElementById("status");
 const connStatus = document.getElementById("connStatus");
 
-// ✅ Check server connection on load
-async function checkConnection() {
-    try {
-        const res = await fetch("/", { method: "GET" });
+// ---------------- CONNECT WEBSOCKET ----------------
+const socket = io();
 
-        if (res.ok) {
-            connStatus.innerText = "✅ Connected";
-            connStatus.className = "conn-status connected";
-            toggle.disabled = false;
-        } else {
-            throw new Error();
-        }
-    } catch {
-        connStatus.innerText = "❌ Cannot reach server";
-        connStatus.className = "conn-status error";
-        toggle.disabled = true;
+// When connected to server
+socket.on("connect", () => {
+    connStatus.innerText = "🟢 Live Connected";
+    connStatus.className = "conn-status connected";
+    toggle.disabled = false;
+});
+
+// When disconnected
+socket.on("disconnect", () => {
+    connStatus.innerText = "🔴 Disconnected";
+    connStatus.className = "conn-status disconnected";
+    toggle.disabled = true;
+});
+
+// ---------------- REAL-TIME STATUS UPDATE ----------------
+socket.on("status_update", (data) => {
+    const state = data.status;
+
+    if (state === "ON") {
+        toggle.checked = true;
+        statusText.innerText = "Status: ON";
     }
-}
 
-// 🔘 Handle toggle
+    else if (state === "OFF") {
+        toggle.checked = false;
+        statusText.innerText = "Status: OFF";
+    }
+
+    else {
+        statusText.innerText = "Status: " + state;
+    }
+});
+
+// ---------------- SEND COMMAND ----------------
 toggle.addEventListener("change", async () => {
     const state = toggle.checked ? "ON" : "OFF";
     const url = state === "ON" ? "/on" : "/off";
 
-    statusText.innerText = `Status: Sending ${state}...`;
+    statusText.innerText = "Status: Sending " + state + "...";
 
     try {
         const res = await fetch(url, {
@@ -127,20 +162,13 @@ toggle.addEventListener("change", async () => {
             }
         });
 
-        if (res.ok) {
-            statusText.innerText = `Status: ${state}`;
-        } else {
-            throw new Error();
-        }
+        if (!res.ok) throw new Error();
 
     } catch (err) {
         statusText.innerText = "❌ Error sending command";
-        toggle.checked = !toggle.checked; // revert
+        toggle.checked = !toggle.checked;
     }
 });
-
-// Run on page load
-checkConnection();
 </script>
 
 </body>
