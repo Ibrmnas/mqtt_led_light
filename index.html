@@ -1,175 +1,166 @@
 <!DOCTYPE html>
 <html>
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Smart Light</title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Smart Light</title>
+    <script src="https://unpkg.com/mqtt@5.0.0/dist/mqtt.min.js"></script>
+    <style>
+        body {
+            background: #1e1e2f;
+            color: white;
+            text-align: center;
+            font-family: Arial, sans-serif;
+            padding: 20px;
+        }
+        .container {
+            margin-top: 100px;
+        }
+        .switch {
+            position: relative;
+            display: inline-block;
+            width: 80px;
+            height: 40px;
+        }
+        .switch input {
+            display: none;
+        }
+        .slider {
+            position: absolute;
+            cursor: pointer;
+            background-color: #ccc;
+            border-radius: 40px;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            transition: 0.4s;
+        }
+        .slider:before {
+            position: absolute;
+            content: "";
+            height: 30px;
+            width: 30px;
+            left: 5px;
+            bottom: 5px;
+            background-color: white;
+            border-radius: 50%;
+            transition: 0.4s;
+        }
+        input:checked + .slider {
+            background-color: #00c853;
+        }
+        input:checked + .slider:before {
+            transform: translateX(40px);
+        }
+        .status {
+            margin-top: 20px;
+            font-size: 20px;
+        }
+        .conn-status {
+            margin-top: 10px;
+            font-size: 14px;
+            padding: 5px;
+            border-radius: 5px;
+        }
+        .connected {
+            color: #00c853;
+        }
+        .disconnected {
+            color: #ff4444;
+        }
+    </style>
 
-<style>
-body {
-    background: #1e1e2f;
-    color: white;
-    text-align: center;
-    font-family: Arial, sans-serif;
-    padding: 20px;
-}
+    <!-- iOS Home Screen Icon -->
+    <link rel="apple-touch-icon" href="/icon-180.png">
+    
+    <!-- PWA Meta Tags for Standalone Mode -->
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="Smart Home">
 
-.container {
-    margin-top: 100px;
-}
-
-.switch {
-    position: relative;
-    display: inline-block;
-    width: 80px;
-    height: 40px;
-}
-
-.switch input {
-    display: none;
-}
-
-.slider {
-    position: absolute;
-    cursor: pointer;
-    background-color: #ccc;
-    border-radius: 40px;
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    transition: 0.4s;
-}
-
-.slider:before {
-    position: absolute;
-    content: "";
-    height: 30px;
-    width: 30px;
-    left: 5px;
-    bottom: 5px;
-    background-color: white;
-    border-radius: 50%;
-    transition: 0.4s;
-}
-
-input:checked + .slider {
-    background-color: #00c853;
-}
-
-input:checked + .slider:before {
-    transform: translateX(40px);
-}
-
-.status {
-    margin-top: 20px;
-    font-size: 20px;
-}
-
-.conn-status {
-    margin-top: 10px;
-    font-size: 14px;
-}
-
-.connected {
-    color: #00c853;
-}
-
-.disconnected {
-    color: #ff4444;
-}
-</style>
-
-<!-- PWA -->
-<link rel="manifest" href="/manifest.json">
-<link rel="apple-touch-icon" href="/icon-180.png">
-<meta name="apple-mobile-web-app-capable" content="yes">
-
+    <!-- Manifest for Android/Chrome -->
+    <link rel="manifest" href="/manifest.json">
+    
 </head>
-
 <body>
-
 <div class="container">
     <h1>💡 Smart Light</h1>
-
-    <div class="conn-status" id="connStatus">Connecting...</div>
-
+    <div class="conn-status" id="connStatus">Connecting to MQTT...</div>
+    
     <label class="switch">
-        <input type="checkbox" id="toggle" disabled>
+        <input type="checkbox" id="toggle">
         <span class="slider"></span>
     </label>
-
+    
     <div class="status" id="status">Status: Unknown</div>
 </div>
 
-<!-- Socket.IO -->
-<script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
-
 <script>
-const API_KEY = "ibrmnas7991"; // 🔐 MUST match server.py
-
-const toggle = document.getElementById("toggle");
-const statusText = document.getElementById("status");
-const connStatus = document.getElementById("connStatus");
-
-// ---------------- CONNECT WEBSOCKET ----------------
-const socket = io();
-
-// When connected to server
-socket.on("connect", () => {
-    connStatus.innerText = "🟢 Live Connected";
-    connStatus.className = "conn-status connected";
-    toggle.disabled = false;
-});
-
-// When disconnected
-socket.on("disconnect", () => {
-    connStatus.innerText = "🔴 Disconnected";
-    connStatus.className = "conn-status disconnected";
-    toggle.disabled = true;
-});
-
-// ---------------- REAL-TIME STATUS UPDATE ----------------
-socket.on("status_update", (data) => {
-    const state = data.status;
-
-    if (state === "ON") {
-        toggle.checked = true;
-        statusText.innerText = "Status: ON";
-    }
-
-    else if (state === "OFF") {
-        toggle.checked = false;
-        statusText.innerText = "Status: OFF";
-    }
-
-    else {
-        statusText.innerText = "Status: " + state;
-    }
-});
-
-// ---------------- SEND COMMAND ----------------
-toggle.addEventListener("change", async () => {
-    const state = toggle.checked ? "ON" : "OFF";
-    const url = state === "ON" ? "/on" : "/off";
-
-    statusText.innerText = "Status: Sending " + state + "...";
-
-    try {
-        const res = await fetch(url, {
-            headers: {
-                "x-api-key": API_KEY
+    const BROKER = "wss://02265bce42164317af0133828c96f3db.s1.eu.hivemq.cloud:8884/mqtt";
+    const USERNAME = "ibrmnas";
+    const PASSWORD = "gecB7C!3Nq@fQ7n";
+    
+    let client = null;
+    let sending = false;  // ← Prevents feedback loop
+    
+    function connect() {
+        const options = {
+            username: USERNAME,
+            password: PASSWORD,
+            clean: true,
+            reconnectPeriod: 5000,
+            connectTimeout: 30000
+        };
+        
+        client = mqtt.connect(BROKER, options);
+        
+        client.on('connect', () => {
+            document.getElementById('connStatus').innerHTML = '✅ Connected to HiveMQ Cloud';
+            document.getElementById('connStatus').className = 'conn-status connected';
+            document.getElementById('toggle').disabled = false;
+            client.subscribe('room/led/status');
+        });
+        
+        client.on('message', (topic, message) => {
+            if (topic === 'room/led/status') {
+                const state = message.toString();
+                document.getElementById('status').innerHTML = `Status: ${state}`;
+                
+                if (!sending) {
+                    document.getElementById('toggle').checked = (state === 'ON');
+                }
+                sending = false;
             }
         });
-
-        if (!res.ok) throw new Error();
-
-    } catch (err) {
-        statusText.innerText = "❌ Error sending command";
-        toggle.checked = !toggle.checked;
+        
+        client.on('error', (err) => {
+            console.error('Connection error:', err);
+            document.getElementById('connStatus').innerHTML = '❌ Connection failed';
+            document.getElementById('connStatus').className = 'conn-status disconnected';
+        });
+        
+        client.on('close', () => {
+            document.getElementById('connStatus').innerHTML = '🔄 Disconnected, reconnecting...';
+            document.getElementById('connStatus').className = 'conn-status disconnected';
+            document.getElementById('toggle').disabled = true;
+        });
     }
-});
+    
+    document.getElementById('toggle').addEventListener('change', (e) => {
+        if (!client || !client.connected) {
+            alert('Not connected to MQTT broker');
+            e.target.checked = !e.target.checked;
+            return;
+        }
+        
+        sending = true;
+        const state = e.target.checked ? 'ON' : 'OFF';
+        client.publish('room/led', state);
+        document.getElementById('status').innerHTML = `Status: Sending ${state}...`;
+    });
+    
+    connect();
 </script>
-
 </body>
 </html>
