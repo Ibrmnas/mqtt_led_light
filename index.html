@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Smart Light</title>
+    <title>Smart Light - Secure</title>
     <script src="https://unpkg.com/mqtt@5.0.0/dist/mqtt.min.js"></script>
     <style>
         body {
@@ -14,7 +14,51 @@
             padding: 20px;
         }
         .container {
-            margin-top: 100px;
+            margin-top: 50px;
+            max-width: 400px;
+            margin-left: auto;
+            margin-right: auto;
+        }
+        .login-box, .control-box {
+            background: #2a2a3e;
+            padding: 30px;
+            border-radius: 20px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+        }
+        .control-box {
+            display: none;
+        }
+        input {
+            width: 100%;
+            padding: 12px;
+            margin: 10px 0;
+            border: none;
+            border-radius: 8px;
+            font-size: 16px;
+            box-sizing: border-box;
+        }
+        input[type="password"] {
+            background: #1e1e2f;
+            color: white;
+            border: 1px solid #444;
+        }
+        button {
+            background: #00c853;
+            color: white;
+            border: none;
+            padding: 12px 30px;
+            border-radius: 8px;
+            font-size: 16px;
+            cursor: pointer;
+            margin-top: 10px;
+        }
+        button:hover {
+            background: #00a844;
+        }
+        .error {
+            color: #ff4444;
+            margin-top: 10px;
+            font-size: 14px;
         }
         .switch {
             position: relative;
@@ -60,8 +104,6 @@
         .conn-status {
             margin-top: 10px;
             font-size: 14px;
-            padding: 5px;
-            border-radius: 5px;
         }
         .connected {
             color: #00c853;
@@ -69,42 +111,144 @@
         .disconnected {
             color: #ff4444;
         }
+        h1 {
+            margin-bottom: 10px;
+        }
+        h2 {
+            margin-bottom: 20px;
+        }
+        .logout-btn {
+            background: #ff4444;
+            margin-top: 20px;
+            font-size: 14px;
+            padding: 8px 20px;
+        }
+        .logout-btn:hover {
+            background: #cc0000;
+        }
+        .info-text {
+            font-size: 12px;
+            color: #888;
+            margin-top: 15px;
+        }
     </style>
-
-    <!-- iOS Home Screen Icon -->
-    <link rel="apple-touch-icon" href="/icon-180.png">
-    
-    <!-- PWA Meta Tags for Standalone Mode -->
-    <meta name="apple-mobile-web-app-capable" content="yes">
-    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-    <meta name="apple-mobile-web-app-title" content="Smart Home">
-
-    <!-- Manifest for Android/Chrome -->
     <link rel="manifest" href="/manifest.json">
-    
+    <link rel="apple-touch-icon" href="/icon-180.png">
+    <meta name="apple-mobile-web-app-capable" content="yes">
 </head>
 <body>
+
 <div class="container">
-    <h1>💡 Smart Light</h1>
-    <div class="conn-status" id="connStatus">Connecting to MQTT...</div>
-    
-    <label class="switch">
-        <input type="checkbox" id="toggle">
-        <span class="slider"></span>
-    </label>
-    
-    <div class="status" id="status">Status: Unknown</div>
+    <!-- LOGIN SECTION -->
+    <div id="loginSection" class="login-box">
+        <h2>🔐 Authentication Required</h2>
+        <p>Enter password to control the light</p>
+        <input type="password" id="passwordInput" placeholder="Enter password" autofocus>
+        <button onclick="checkPassword()">Login</button>
+        <div id="loginError" class="error"></div>
+    </div>
+
+    <!-- CONTROL SECTION (hidden until login) -->
+    <div id="controlSection" class="control-box">
+        <h1>💡 Smart Light</h1>
+        <div class="conn-status" id="connStatus">Connecting to MQTT...</div>
+        
+        <label class="switch">
+            <input type="checkbox" id="toggle" disabled>
+            <span class="slider"></span>
+        </label>
+        
+        <div class="status" id="status">Status: Unknown</div>
+        
+        <button class="logout-btn" onclick="logout()">Logout</button>
+        <div class="info-text">Session lasts 24 hours</div>
+    </div>
 </div>
 
 <script>
+    // ============ SECURITY CONFIGURATION ============
+    // 🔐 IMPORTANT: CHANGE THIS PASSWORD TO YOUR OWN!
+    const CORRECT_PASSWORD = "mypassword123";  // ⚠️ CHANGE THIS NOW!
+    
+    // How long to stay logged in (hours)
+    const SESSION_DURATION_HOURS = 24;
+    
+    // MQTT Configuration (only loaded after login)
     const BROKER = "wss://02265bce42164317af0133828c96f3db.s1.eu.hivemq.cloud:8884/mqtt";
     const USERNAME = "ibrmnas";
     const PASSWORD = "gecB7C!3Nq@fQ7n";
     
+    // ============ SESSION MANAGEMENT ============
     let client = null;
-    let sending = false;  // ← Prevents feedback loop
+    let sending = false;
     
-    function connect() {
+    function checkPassword() {
+        const enteredPassword = document.getElementById('passwordInput').value;
+        
+        if (enteredPassword === CORRECT_PASSWORD) {
+            // Store login in session storage (clears when browser closes)
+            sessionStorage.setItem('authenticated', 'true');
+            sessionStorage.setItem('loginTime', Date.now().toString());
+            
+            // Show control section and initialize MQTT
+            showControlSection();
+        } else {
+            document.getElementById('loginError').innerText = '❌ Incorrect password';
+            document.getElementById('passwordInput').value = '';
+            document.getElementById('passwordInput').focus();
+        }
+    }
+    
+    function showControlSection() {
+        document.getElementById('loginSection').style.display = 'none';
+        document.getElementById('controlSection').style.display = 'block';
+        
+        // Start MQTT connection
+        connectMQTT();
+    }
+    
+    function logout() {
+        // Clear session
+        sessionStorage.removeItem('authenticated');
+        sessionStorage.removeItem('loginTime');
+        
+        // Disconnect MQTT
+        if (client) {
+            client.end();
+            client = null;
+        }
+        
+        // Show login section
+        document.getElementById('loginSection').style.display = 'block';
+        document.getElementById('controlSection').style.display = 'none';
+        document.getElementById('passwordInput').value = '';
+        document.getElementById('loginError').innerText = '';
+        document.getElementById('passwordInput').focus();
+    }
+    
+    function checkExistingSession() {
+        const isAuthenticated = sessionStorage.getItem('authenticated');
+        const loginTime = sessionStorage.getItem('loginTime');
+        
+        if (isAuthenticated === 'true' && loginTime) {
+            const hoursSinceLogin = (Date.now() - parseInt(loginTime)) / (1000 * 60 * 60);
+            
+            if (hoursSinceLogin < SESSION_DURATION_HOURS) {
+                // Session is still valid
+                showControlSection();
+                return true;
+            } else {
+                // Session expired
+                sessionStorage.removeItem('authenticated');
+                sessionStorage.removeItem('loginTime');
+                return false;
+            }
+        }
+        return false;
+    }
+    
+    // ============ MQTT FUNCTIONS ============
+    function connectMQTT() {
         const options = {
             username: USERNAME,
             password: PASSWORD,
@@ -116,7 +260,7 @@
         client = mqtt.connect(BROKER, options);
         
         client.on('connect', () => {
-            document.getElementById('connStatus').innerHTML = '✅ Connected to HiveMQ Cloud';
+            document.getElementById('connStatus').innerHTML = '✅ Connected to HiveMQ';
             document.getElementById('connStatus').className = 'conn-status connected';
             document.getElementById('toggle').disabled = false;
             client.subscribe('room/led/status');
@@ -126,7 +270,6 @@
             if (topic === 'room/led/status') {
                 const state = message.toString();
                 document.getElementById('status').innerHTML = `Status: ${state}`;
-                
                 if (!sending) {
                     document.getElementById('toggle').checked = (state === 'ON');
                 }
@@ -134,8 +277,7 @@
             }
         });
         
-        client.on('error', (err) => {
-            console.error('Connection error:', err);
+        client.on('error', () => {
             document.getElementById('connStatus').innerHTML = '❌ Connection failed';
             document.getElementById('connStatus').className = 'conn-status disconnected';
         });
@@ -149,18 +291,31 @@
     
     document.getElementById('toggle').addEventListener('change', (e) => {
         if (!client || !client.connected) {
-            alert('Not connected to MQTT broker');
+            alert('Not connected to MQTT');
             e.target.checked = !e.target.checked;
             return;
         }
-        
         sending = true;
         const state = e.target.checked ? 'ON' : 'OFF';
         client.publish('room/led', state);
         document.getElementById('status').innerHTML = `Status: Sending ${state}...`;
     });
     
-    connect();
+    // Allow pressing Enter key to submit password
+    document.getElementById('passwordInput').addEventListener('keypress', (e) => {
+        if (e.key === 'Enter') {
+            checkPassword();
+        }
+    });
+    
+    // ============ INITIALIZE ============
+    // Check if user is already logged in
+    const isLoggedIn = checkExistingSession();
+    if (!isLoggedIn) {
+        // Show login screen
+        document.getElementById('loginSection').style.display = 'block';
+        document.getElementById('controlSection').style.display = 'none';
+    }
 </script>
 </body>
 </html>
